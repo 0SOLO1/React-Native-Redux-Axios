@@ -1,0 +1,56 @@
+name: Demo
+
+on:
+  push:
+    branches:
+      - main
+      - Production
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Debug APK (main branch)
+        if: github.ref == 'refs/heads/main'
+        run: npx react-native run-android --variant=debug
+
+      - name: Build Release APK (Production branch)
+        if: github.ref == 'refs/heads/Production'
+        run: npx react-native run-android --variant=release
+
+      - name: Generate AAB (Deployment branch)
+        if: github.ref == 'refs/heads/Deployment'
+        run: |
+          cd android
+          ./gradlew bundleRelease
+
+      - name: Archive artifacts
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/Production'
+        uses: actions/upload-artifact@v2
+        with:
+          name: android-artifacts
+          path: android/app/build/outputs/
+
+      - name: Deploy to Google Play Store (AAB)
+        if: github.ref == 'refs/heads/Deployment'
+        # Here you would have your script to upload the AAB to the Play Store
+        # Replace the placeholder with your actual deployment script
+        run: ./scripts/deploy-to-playstore.sh
