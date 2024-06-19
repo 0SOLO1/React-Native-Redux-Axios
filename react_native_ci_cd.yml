@@ -1,10 +1,11 @@
-name: Demo
+name: CI/CD
 
 on:
   push:
     branches:
       - main
       - Production
+      - Deployment
 
 jobs:
   build_and_deploy:
@@ -17,40 +18,38 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v2
-        with:
-          distribution: 'adopt'
-          java-version: '17'
+          node-version: '16'
 
       - name: Install dependencies
         run: npm install
 
-      - name: Build Debug APK (main branch)
-        if: github.ref == 'refs/heads/main'
-        run: npx react-native run-android --variant=debug
+      - name: Set execute permission for gradlew script
+        run: chmod +x android/gradlew
 
-      - name: Build Release APK (Production branch)
-        if: github.ref == 'refs/heads/Production'
-        run: npx react-native run-android --variant=release
-
-      - name: Generate AAB (Deployment branch)
-        if: github.ref == 'refs/heads/Deployment'
+      - name: Build and Install Release APK
         run: |
           cd android
-          ./gradlew bundleRelease
+          ./gradlew assembleRelease
+          # Check if there are connected devices or emulators before installing
+          if [ $(adb devices | wc -l) -lt 3 ]; then
+            echo "No connected devices or emulators found, skipping installation."
+          else
+            ./gradlew installRelease
+          fi
+
+      - name: Generate AAB
+        run: cd android && ./gradlew bundleRelease
 
       - name: Archive artifacts
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/Production'
         uses: actions/upload-artifact@v2
         with:
           name: android-artifacts
-          path: android/app/build/outputs/
+          path: |
+            android/app/build/outputs/
+            android/app/build/outputs/bundle/release/
 
       - name: Deploy to Google Play Store (AAB)
         if: github.ref == 'refs/heads/Deployment'
-        # Here you would have your script to upload the AAB to the Play Store
-        # Replace the placeholder with your actual deployment script
+        # Replace this with your deployment script
         run: ./scripts/deploy-to-playstore.sh
+
